@@ -29,7 +29,7 @@ Copy `ts/` and `sepolicy.rule` into the `Jerry/` folder of JerryManager.
 ## Rebuild with GitHub Actions
 
 1. Open the **Actions** tab, choose **Build Jerry ts/**, press **Run workflow**.
-2. Leave `ref` as it is to build the pinned commit (`dda5277`), or enter another TrickyStoreOSS commit or tag.
+2. Leave `ref` as `main` to build the latest TrickyStoreOSS, or enter a specific commit or tag.
 3. Download the **JERRY-TS-OSS-ts** artifact (`ts/` and `sepolicy.rule`) and replace the files in this repo.
 
 The workflow checks out TrickyStoreOSS with its PLTI submodule, so no source is copied here. It uses Java 26, Android SDK 37 and NDK 29, same as upstream.

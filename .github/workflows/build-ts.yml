@@ -1,16 +1,16 @@
 name: Build Jerry ts/
 
 # No upstream source is copied into this repo. The workflow checks out
-# beakthoven/TrickyStoreOSS at a pinned commit, builds it, and packs only the
+# beakthoven/TrickyStoreOSS at the latest main (or a ref you choose), builds it, and packs only the
 # files JerryManager ships: ts/ and sepolicy.rule.
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "TrickyStoreOSS commit or tag to build"
+        description: "TrickyStoreOSS branch, commit or tag to build (main = latest)"
         required: false
-        default: "dda5277d10b948ba6bec362252ec41f8bbbd9f97"
+        default: "main"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: beakthoven/TrickyStoreOSS
-          ref: ${{ inputs.ref || 'dda5277d10b948ba6bec362252ec41f8bbbd9f97' }}
+          ref: ${{ inputs.ref || 'main' }}
           path: upstream
           submodules: recursive   # PLTI
           fetch-depth: 0          # build reads the git commit count and hash
