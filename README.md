@@ -1,4 +1,4 @@
-# Jerry TSOSS
+# Jerry TS-OSS
 
 Built-in TSOSS (Tricky Store OSS) files for [JerryManager](https://github.com/WajahatNaeem056/JerryManager), so no separate Tricky Store module is needed.
 
