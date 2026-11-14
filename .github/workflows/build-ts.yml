@@ -1,0 +1,96 @@
+name: Build Jerry ts/
+
+# No upstream source is copied into this repo. The workflow checks out
+# beakthoven/TrickyStoreOSS at a pinned commit, builds it, and packs only the
+# files JerryManager ships: ts/ and sepolicy.rule.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "TrickyStoreOSS commit or tag to build"
+        required: false
+        default: "dda5277d10b948ba6bec362252ec41f8bbbd9f97"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out TrickyStoreOSS
+        uses: actions/checkout@v7
+        with:
+          repository: beakthoven/TrickyStoreOSS
+          ref: ${{ inputs.ref || 'dda5277d10b948ba6bec362252ec41f8bbbd9f97' }}
+          path: upstream
+          submodules: recursive   # PLTI
+          fetch-depth: 0          # build reads the git commit count and hash
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 26
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-${{ runner.os }}-ts
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6.4.0
+        with:
+          build-root-directory: upstream
+
+      # Kotlin -> classes.dex (R8), CMake/NDK 29 -> libTrickyStoreOSS.so + libinject.so
+      - name: Build release
+        working-directory: upstream
+        run: ./gradlew --parallel assembleRelease --stacktrace
+
+      - name: Pack Jerry ts/ folder
+        working-directory: upstream
+        run: |
+          set -euo pipefail
+          OUT="$GITHUB_WORKSPACE/jerry-out"
+          REL=$(find out -name "*Release*.zip" | head -1)
+          [ -n "$REL" ] || { echo "::error::release zip not found in out/"; ls -la out || true; exit 1; }
+          rm -rf work "$OUT"
+          mkdir -p work "$OUT/ts"
+          unzip -q "$REL" -d work
+
+          [ -f work/classes.dex ] || { echo "::error::classes.dex missing"; exit 1; }
+          cp work/classes.dex "$OUT/ts/classes.dex"
+
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            for so in libTrickyStoreOSS.so libinject.so; do
+              [ -f "work/lib/$abi/$so" ] || { echo "::error::missing lib/$abi/$so"; exit 1; }
+            done
+            mkdir -p "$OUT/ts/lib/$abi"
+            cp "work/lib/$abi/libTrickyStoreOSS.so" "work/lib/$abi/libinject.so" "$OUT/ts/lib/$abi/"
+          done
+
+          cp module/daemon "$OUT/ts/daemon"
+          cp module/sepolicy.rule "$OUT/sepolicy.rule"
+
+          # supervisor.sh = module/service.sh, cmdline check renamed to supervisor.sh
+          sed "s/\*service\.sh\*/*supervisor.sh*/" module/service.sh > "$OUT/ts/supervisor.sh"
+          grep -q "\*supervisor\.sh\*" "$OUT/ts/supervisor.sh"
+
+          chmod 755 "$OUT/ts/daemon" "$OUT/ts/supervisor.sh"
+          echo "## Jerry ts/ contents (TrickyStoreOSS $(git rev-parse --short HEAD))" >> "$GITHUB_STEP_SUMMARY"
+          (cd "$OUT" && find . -type f | sort) | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Jerry ts/
+        uses: actions/upload-artifact@v7
+        with:
+          name: JERRY-TS-OSS-ts
+          path: jerry-out/
+          retention-days: 30
